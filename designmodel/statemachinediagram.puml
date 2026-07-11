@@ -1,0 +1,26 @@
+@startuml
+    left to right direction
+    state StateTop as "<img:top.png>" : stateTop
+    state StateTutorSettings as "<img:tutor_settings.png>" : stateTutorSettings
+    state StateTutorMatching as "<img:tutor_matching.png>" : stateTutorMatching
+    state StateTutorChat as "<img:tutor_chat.png>" : stateTutorChat
+
+    state StateStudentSettings as "<img:student_settings.png>" : stateStudentSettings
+    state StateStudentMatching as "<img:student_matching.png>" : stateStudentMatching
+    state StateStudentChat as "<img:student_chat.png>" : stateStudentChat
+    state StateStudentEvaluation as "<img:student_evaluation.png>" : stateStudentEvaluation
+
+    [*] --> StateTop : initialize
+    StateTop --> StateTutorSettings : [大学生(対応側)として開始]
+    StateTutorSettings --> StateTutorMatching : [保存してマッチング画面へ]
+    StateTutorMatching --> StateTop : [ログアウト・立場切り替え]
+    StateTutorMatching --> StateTutorChat : [チャットで相談する]
+    StateTutorChat --> StateTutorMatching : [チャットを終了して一覧へ戻る]
+
+    StateTop --> StateStudentSettings : [高校生(質問側)として開始]
+    StateStudentSettings --> StateStudentMatching : [保存してマッチング画面へ]
+    StateStudentMatching --> StateTop : [ログアウト・立場切り替え]
+    StateStudentMatching --> StateStudentChat : [チャットで相談する]
+    StateStudentChat --> StateStudentEvaluation : [チャットを終了して先輩を評価]
+    StateStudentEvaluation --> StateTop : [評価・提案を送信]
+@enduml
