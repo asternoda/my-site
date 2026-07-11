@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>フルサイクル・学部学科ロック機能付きデモ</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+      :root {
+        --primary-color: #ff4757;
+        --bg-color: #f1f2f6;
+        --card-color: #ffffff;
+        --accent-color: #2ed573;
+      }
+      body {
+        font-family: "Helvetica Neue", Arial, sans-serif;
+        background-color: var(--bg-color);
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      .phone-mock {
+        width: 375px;
+        height: 667px;
+        background-color: var(--card-color);
+        border-radius: 30px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border: 8px solid #2f3542;
+      }
+      .screen {
+        display: none;
+        flex-direction: column;
+        height: 100%;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      .screen.active {
+        display: flex;
+      }
+      h2 {
+        text-align: center;
+        color: #2f3542;
+        margin: 10px 0 5px 0;
+      }
+
+      /* ボタン */
+      .btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px;
+        border-radius: 25px;
+        font-size: 16px;
+        cursor: pointer;
+        margin: 10px 0;
+        text-align: center;
+        font-weight: bold;
+      }
+      .btn-secondary {
+        background-color: #ced6e0;
+        color: #2f3542;
+      }
+      .btn-suggest {
+        background-color: #747d8c;
+        color: white;
+        font-size: 11px;
+        padding: 5px 10px;
+        border-radius: 15px;
+        margin-top: 5px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      /* フォーム */
+      .form-group {
+        margin-bottom: 12px;
+      }
+      .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #2f3542;
+      }
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ced6e0;
+        border-radius: 8px;
+        box-sizing: border-box;
+      }
+
+      /* ★ ロックされた入力欄のスタイル */
+      .form-group input:disabled {
+        background-color: #f1f2f6;
+        color: #747d8c;
+        border-color: #dcdde1;
+        cursor: not-allowed;
+        font-weight: bold;
+      }
+      .lock-notice {
+        font-size: 11px;
+        color: #ff4757;
+        margin-top: 2px;
+        font-weight: bold;
+      }
+
+      /* タグ & リスト */
+      .tag-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 10px 0;
+      }
+      .tag-btn {
+        background: #f1f2f6;
+        border: 2px solid #ced6e0;
+        padding: 10px 15px;
+        border-radius: 20px;
+        cursor: pointer;
+        text-align: left;
+        font-size: 13px;
+      }
+      .tag-btn.selected {
+        background: #e8f9f0;
+        border-color: var(--accent-color);
+        color: #157347;
+        font-weight: bold;
+      }
+      .result-list {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .partner-card {
+        background: #f8f9fa;
+        border: 2px solid #e4e7eb;
+        border-radius: 15px;
+        padding: 15px;
+        position: relative;
+      }
+
+      /* バッジ */
+      .match-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: var(--accent-color);
+        color: white;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: bold;
+      }
+      .role-badge {
+        display: inline-block;
+        background: #e3fafc;
+        color: #0c8599;
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+
+      /* スキルランク別デザイン */
+      .card-tags {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .skill-tag {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .lv-bronze {
+        background: #f5f6fa;
+        color: #a4b0be;
+        border: 1px solid #dcdde1;
+      }
+      .lv-silver {
+        background: #f1f2f6;
+        color: #747d8c;
+        border: 1px solid #ced6e0;
+      }
+      .lv-master {
+        background: linear-gradient(135deg, #fff9db, #fab1a0);
+        color: #e17055;
+        border: 1px solid #ff7675;
+        box-shadow: 0 2px 6px rgba(225, 112, 85, 0.2);
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
+
+      /* レビュー・選択肢用 */
+      .review-option {
+        background: #f1f2f6;
+        border: 2px solid #ced6e0;
+        padding: 12px;
+        border-radius: 10px;
+        margin: 8px 0;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: bold;
+        text-align: center;
+      }
+      .review-option.selected {
+        background: #fff9db;
+        border-color: #ff7675;
+        color: #e17055;
+      }
+      .review-option.suggest-type {
+        border: 2px dashed #747d8c;
+        background: #fafafa;
+      }
+      .review-option.suggest-type.selected {
+        background: #e8f4fd;
+        border-color: #3498db;
+        color: #2980b9;
+      }
+
+      /* 通知・追加エリア */
+      .notification-box {
+        background: #fff5f5;
+        border: 2px dashed #ff4757;
+        padding: 12px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        font-size: 13px;
+      }
+      .add-skill-box {
+        background: #f1f2f6;
+        border: 1px solid #ced6e0;
+        padding: 12px;
+        border-radius: 12px;
+        margin-top: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="phone-mock">
+      <div id="scr-role" class="screen active">
+        <h2>アプリを始める</h2>
+        <p style="text-align: center; color: #747d8c; margin: 0">
+          あなたの立場を選択してください
+        </p>
+        <div
+          style="
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+          "
+        >
+          <button
+            class="btn"
+            style="background: #57606f"
+            onclick="selectRole('大学生')"
+          >
+            大学生（対応側）として開始
+          </button>
+          <button class="btn" onclick="selectRole('高校生')">
+            高校生（質問側）として開始
+          </button>
+        </div>
+      </div>
+
+      <div id="scr-reg" class="screen">
+        <h2 id="reg-title">プロフィール登録</h2>
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px">
+          <div
+            id="suggest-notice"
+            class="notification-box"
+            style="display: none"
+          ></div>
+
+          <div class="form-group">
+            <label>ニックネーム</label>
+            <input text="text" id="user-name" value="" />
+          </div>
+
+          <div id="univ-fields" style="display: none">
+            <div class="form-group">
+              <label>学部</label>
+              <input type="text" id="user-faculty" value="" />
+              <div
+                id="faculty-lock-msg"
+                class="lock-notice"
+                style="display: none"
+              >
+                🔒 初回登録以降、変更できません
+              </div>
+            </div>
+            <div class="form-group">
+              <label>学科</label>
+              <input type="text" id="user-department" value="" />
+              <div id="dept-lock-msg" class="lock-notice" style="display: none">
+                🔒 初回登録以降、変更できません
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 15px">
+            <label id="tag-label">現在の保有ステータス</label>
+            <div class="tag-container" id="my-tag-container"></div>
+          </div>
+
+          <div
+            id="univ-add-skill-area"
+            class="add-skill-box"
+            style="display: none"
+          >
+            <label style="font-size: 12px; font-weight: bold; color: #2f3542"
+              >➕ 新しいステータスを自主追加</label
+            >
+            <select
+              id="available-tags-select"
+              style="margin-top: 5px; padding: 6px; font-size: 12px"
+            ></select>
+            <button
+              class="btn btn-suggest"
+              style="
+                background: #0984e3;
+                width: 100%;
+                margin-top: 8px;
+                padding: 8px;
+              "
+              onclick="addSkillBySelf()"
+            >
+              🥉 選択したスキルを追加
+            </button>
+          </div>
+        </div>
+        <button class="btn" onclick="saveProfileAndGo()">
+          保存してマッチング画面へ
+        </button>
+      </div>
+
+      <div id="scr-match" class="screen">
+        <h2 id="match-screen-title">おすすめの一覧</h2>
+        <div class="result-list" id="result-container"></div>
+        <button
+          class="btn btn-secondary"
+          onclick="changeScreen('scr-role')"
+          style="padding: 8px; font-size: 14px"
+        >
+          ログアウト・立場切替
+        </button>
+      </div>
+
+      <div id="scr-chat" class="screen">
+        <h2>個別チャット</h2>
+        <div
+          style="
+            flex: 1;
+            background: #f1f2f6;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 14px;
+          "
+          id="chat-box-content"
+        ></div>
+        <button
+          class="btn"
+          style="background: #0984e3"
+          id="end-chat-btn"
+          onclick="openReview()"
+        >
+          チャットを終了して評価へ
+        </button>
+      </div>
+
+      <div id="scr-review" class="screen">
+        <h2>相談の評価</h2>
+        <p
+          style="
+            text-align: center;
+            font-size: 11px;
+            color: #747d8c;
+            margin-bottom: 5px;
+          "
+        >
+          参考になった項目を選んでください
+        </p>
+        <div
+          style="
+            font-weight: bold;
+            font-size: 12px;
+            color: #2f3542;
+            margin-top: 5px;
+          "
+        >
+          先輩が持っているステータス（成長対象）
+        </div>
+        <div id="review-options-container"></div>
+
+        <div
+          style="
+            font-weight: bold;
+            font-size: 12px;
+            color: #2f3542;
+            margin-top: 15px;
+            border-top: 1px dashed #ced6e0;
+            padding-top: 10px;
+          "
+        >
+          💡 先輩に新しく提案できるステータス
+        </div>
+        <div
+          style="flex: 1; overflow-y: auto"
+          id="suggest-options-container"
+        ></div>
+
+        <button class="btn" onclick="submitReview()">評価・提案を送信</button>
+      </div>
+
+      <div
+        id="scr-lvlup"
+        class="screen"
+        style="justify-content: center; text-align: center; background: #fff9db"
+      >
+        <h1
+          style="
+            font-size: 45px;
+            margin: 0;
+            animation: bounce 0.5s infinite alternate;
+          "
+        >
+          🎉
+        </h1>
+        <h2 style="color: #e17055">RANK UP!</h2>
+        <p
+          id="lvlup-text"
+          style="font-weight: bold; color: #2f3542; white-space: pre-wrap"
+        ></p>
+        <button class="btn" onclick="goToMyPageAfterLvlUp()">
+          マイページで確認する
+        </button>
+      </div>
+    </div>
+
+    <script>
+      let tagNames = [
+        "やりたいことが決まらない",
+        "〇〇(特定のやりたいこと)がある",
+        "学費・奨学金が気になる",
+        "サークル・部活のリアルが知りたい",
+        "バイトと勉強の両立方法",
+      ];
+
+      let highschoolerData = {
+        name: "ショウタ (高3)",
+        desc: "経済学部を志望しています。学費免除の方法やサークル生活について知りたいです。",
+        tags: [2, 3],
+      };
+
+      // 大学生「ケンタ」のデータ（初期値は未登録＝空欄にする）
+      const kentaData = {
+        name: "ケンタ",
+        faculty: "", // 初期状態：空欄（初回のみ変更可能）
+        dept: "", // 初期状態：空欄（初回のみ変更可能）
+        hasRegistered: false, // 初回登録が済んだかどうかのフラグ
+        desc: "「特待生なので学費の相談乗れます！進路選びのモヤモヤも一緒に考えましょう」",
+        icon: "🎓",
+        skills: [
+          { tagId: 0, exp: 5 },
+          { tagId: 2, exp: 20 },
+        ],
+      };
+
+      let globalSuggestedTagId = null;
+      let pendingLvlUpMessage = "";
+      let selectedReviewTags = [];
+      let myRole = "";
+
+      function getSkillRankInfo(exp) {
+        if (exp >= 35)
+          return { label: "👑 Master", className: "lv-master", bonus: 1.5 };
+        if (exp >= 15)
+          return { label: "🥈 Silver", className: "lv-silver", bonus: 1.2 };
+        return { label: "🥉 Bronze", className: "lv-bronze", bonus: 1.0 };
+      }
+
+      function changeScreen(screenId) {
+        document
+          .querySelectorAll(".screen")
+          .forEach((s) => s.classList.remove("active"));
+        document.getElementById(screenId).classList.add("active");
+      }
+
+      // ① 立場選択とロック制御
+      function selectRole(role) {
+        myRole = role;
+        const univFields = document.getElementById("univ-fields");
+        const selfAddArea = document.getElementById("univ-add-skill-area");
+        const noticeBox = document.getElementById("suggest-notice");
+
+        const facultyInput = document.getElementById("user-faculty");
+        const deptInput = document.getElementById("user-department");
+        const facultyLock = document.getElementById("faculty-lock-msg");
+        const deptLock = document.getElementById("dept-lock-msg");
+
+        renderMyTagsForm();
+        updateAvailableTagsSelect();
+
+        if (role === "大学生") {
+          document.getElementById("reg-title").innerText = "先輩マイページ設定";
+          univFields.style.display = "block";
+          selfAddArea.style.display = "block";
+          document.getElementById("user-name").value = kentaData.name;
+
+          // 学部学科の入力値をセット
+          facultyInput.value = kentaData.faculty;
+          deptInput.value = kentaData.dept;
+
+          // ★ すでに初回登録済み（データがある）なら「変更不可」にする
+          if (kentaData.hasRegistered) {
+            facultyInput.disabled = true;
+            deptInput.disabled = true;
+            facultyLock.style.display = "block";
+            deptLock.style.display = "block";
+          } else {
+            // まだ未登録（初回）なら入力可能（デモの初期値を入れてあげる）
+            facultyInput.disabled = false;
+            deptInput.disabled = false;
+            facultyInput.value = "経済学部";
+            deptInput.value = "現代経済学科";
+            facultyLock.style.display = "none";
+            deptLock.style.display = "none";
+          }
+
+          if (pendingLvlUpMessage) {
+            document.getElementById("lvlup-text").innerText =
+              pendingLvlUpMessage;
+            pendingLvlUpMessage = "";
+            changeScreen("scr-lvlup");
+            setTimeout(() => {
+              confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+            }, 200);
+            return;
+          }
+
+          if (globalSuggestedTagId !== null) {
+            noticeBox.style.display = "block";
+            noticeBox.innerHTML = `
+                    <strong>🔔 後輩からの新しい提案：</strong><br>
+                    「${tagNames[globalSuggestedTagId]}」をあなたの強みとして推薦されました！<br>
+                    <button class="btn btn-suggest" style="background:var(--accent-color); margin-right:5px;" onclick="acceptSuggestedTag()">自分のステータスに採用</button>
+                    <button class="btn btn-suggest" onclick="globalSuggestedTagId=null; document.getElementById('suggest-notice').style.display='none'">見送る</button>
+                `;
+          } else {
+            noticeBox.style.display = "none";
+          }
+          changeScreen("scr-reg");
+        } else {
+          // 高校生視点
+          document.getElementById("reg-title").innerText =
+            "あなた（高校生）のお悩み登録";
+          univFields.style.display = "none";
+          selfAddArea.style.display = "none";
+          document.getElementById("user-name").value = highschoolerData.name;
+          changeScreen("scr-reg");
+        }
+      }
+
+      // ② プロフィール保存（ここでロックフラグを立てる）
+      function saveProfileAndGo() {
+        if (myRole === "大学生") {
+          const facultyVal = document
+            .getElementById("user-faculty")
+            .value.trim();
+          const deptVal = document
+            .getElementById("user-department")
+            .value.trim();
+
+          if (!facultyVal || !deptVal) {
+            alert("学部と学科を入力してください。");
+            return;
+          }
+
+          // データを上書き保存し、ロックフラグをONに
+          if (!kentaData.hasRegistered) {
+            kentaData.faculty = facultyVal;
+            kentaData.dept = deptVal;
+            kentaData.hasRegistered = true;
+            alert(
+              "初回登録が完了しました！これで大学・学部学科はロックされます。",
+            );
+          }
+        }
+        generateMatchTimeline();
+        changeScreen("scr-match");
+      }
+
+      // 大学生自身が新スキルを「自主追加」する機能
+      function addSkillBySelf() {
+        const selectEl = document.getElementById("available-tags-select");
+        const selectedId = parseInt(selectEl.value);
+
+        if (isNaN(selectedId)) {
+          alert("追加できる新しいスキルがもうありません！");
+          return;
+        }
+
+        kentaData.skills.push({ tagId: selectedId, exp: 0 });
+        alert(
+          `自主追加完了しました！\n「# ${tagNames[selectedId]}」が 🥉 Bronze として登録されました。`,
+        );
+
+        renderMyTagsForm();
+        updateAvailableTagsSelect();
+      }
+
+      function updateAvailableTagsSelect() {
+        const selectEl = document.getElementById("available-tags-select");
+        selectEl.innerHTML = "";
+        const kentaSkillIds = kentaData.skills.map((s) => s.tagId);
+
+        let hasNewTags = false;
+        tagNames.forEach((name, idx) => {
+          if (!kentaSkillIds.includes(idx)) {
+            const opt = document.createElement("option");
+            opt.value = idx;
+            opt.innerText = name;
+            selectEl.appendChild(opt);
+            hasNewTags = true;
+          }
+        });
+
+        if (!hasNewTags) {
+          selectEl.innerHTML = `<option>すべてのスキルを習得済みです</option>`;
+        }
+      }
+
+      function renderMyTagsForm() {
+        const container = document.getElementById("my-tag-container");
+        container.innerHTML = "";
+
+        tagNames.forEach((name, idx) => {
+          if (myRole === "大学生") {
+            const skill = kentaData.skills.find((s) => s.tagId === idx);
+            if (skill) {
+              const rank = getSkillRankInfo(skill.exp);
+              container.innerHTML += `<div class="skill-tag ${rank.className}" style="margin:4px 0;"><span># ${name}</span> <span>${rank.label}</span></div>`;
+            }
+          } else {
+            const isSel = highschoolerData.tags.includes(idx) ? "selected" : "";
+            container.innerHTML += `<button class="tag-btn ${isSel}" id="tag-${idx}" onclick="toggleHighschoolerTag(${idx})"># ${name}</button>`;
+          }
+        });
+      }
+
+      function toggleHighschoolerTag(idx) {
+        const btn = document.getElementById(`tag-${idx}`);
+        if (highschoolerData.tags.includes(idx)) {
+          highschoolerData.tags = highschoolerData.tags.filter(
+            (id) => id !== idx,
+          );
+          btn.classList.remove("selected");
+        } else {
+          highschoolerData.tags.push(idx);
+          btn.classList.add("selected");
+        }
+      }
+
+      function generateMatchTimeline() {
+        const container = document.getElementById("result-container");
+        const titleEl = document.getElementById("match-screen-title");
+        container.innerHTML = "";
+
+        // まだ登録してない場合のフォールバック表示用
+        const displayFaculty = kentaData.faculty || "未設定学部";
+        const displayDept = kentaData.dept || "未設定学科";
+
+        if (myRole === "大学生") {
+          titleEl.innerText = "相談を待つ後輩一覧";
+
+          let matchPoints = 0;
+          kentaData.skills.forEach((skill) => {
+            if (highschoolerData.tags.includes(skill.tagId)) {
+              matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
+            }
+          });
+          let score =
+            highschoolerData.tags.length > 0
+              ? Math.min(
+                  100,
+                  Math.round(
+                    (matchPoints / highschoolerData.tags.length) * 100,
+                  ),
+                )
+              : 0;
+
+          let hstagsHtml = "";
+          highschoolerData.tags.forEach((t) => {
+            hstagsHtml += `<span style="display:inline-block; background:#e2e8f0; font-size:11px; padding:3px 8px; border-radius:12px; margin:2px;"># ${tagNames[t]}</span>`;
+          });
+
+          container.innerHTML = `
+                <div class="partner-card">
+                    <div class="match-badge">マッチ度 ${score}%</div>
+                    <div class="role-badge">👦 高校生（質問側）</div><br>
+                    <strong style="font-size:16px;">${highschoolerData.name}</strong>
+                    <p style="font-size:13px; color:#57606f; margin:5px 0;">${highschoolerData.desc}</p>
+                    <div style="margin-top:10px;">${hstagsHtml}</div>
+                    <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">チャット相談に応じる</button>
+                </div>
+            `;
+        } else {
+          titleEl.innerText = "おすすめの先輩一覧";
+
+          kentaData.skills.sort((a, b) => b.exp - a.exp);
+
+          let matchPoints = 0;
+          kentaData.skills.forEach((skill) => {
+            if (highschoolerData.tags.includes(skill.tagId)) {
+              matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
+            }
+          });
+          let score =
+            highschoolerData.tags.length > 0
+              ? Math.min(
+                  100,
+                  Math.round(
+                    (matchPoints / highschoolerData.tags.length) * 100,
+                  ),
+                )
+              : 0;
+
+          let tagsHtml = "";
+          kentaData.skills.forEach((skill) => {
+            const rankInfo = getSkillRankInfo(skill.exp);
+            const isMatch = highschoolerData.tags.includes(skill.tagId)
+              ? "border: 2px solid var(--accent-color);"
+              : "";
+            tagsHtml += `
+                    <div class="skill-tag ${rankInfo.className}" style="${isMatch}">
+                        <span># ${tagNames[skill.tagId]}</span>
+                        <span>${rankInfo.label}</span>
+                    </div>
+                `;
+          });
+
+          container.innerHTML = `
+                <div class="partner-card">
+                    <div class="match-badge">おすすめ度 ${score}%</div>
+                    <div class="role-badge">🎓 大学生（対応側）</div><br>
+                    <strong style="font-size:16px;">${kentaData.name}先輩</strong>
+                    <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
+                    <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
+                    <div class="card-tags">${tagsHtml}</div>
+                    <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="startChatRoom()">チャットで相談する</button>
+                </div>
+            `;
+        }
+      }
+
+      function startChatRoom() {
+        const chatBox = document.getElementById("chat-box-content");
+        const endBtn = document.getElementById("end-chat-btn");
+
+        if (myRole === "大学生") {
+          chatBox.innerHTML = `
+                <p><strong>あなた(ケンタ先輩):</strong> マッチングありがとうございます！所属は【${kentaData.faculty}】です、何でも聞いてね！</p>
+                <p><strong>${highschoolerData.name}:</strong> ありがとうございます！よろしくお願いします！</p>
+            `;
+          endBtn.innerText = "チャットを終了して一覧へ戻る";
+          endBtn.onclick = () => {
+            alert("チャットを終了しました。");
+            generateMatchTimeline();
+            changeScreen("scr-match");
+          };
+        } else {
+          chatBox.innerHTML = `
+                <p><strong>${kentaData.name}先輩:</strong> 何でも気軽に聞いてくださいね！</p>
+                <p><strong>あなた:</strong> ありがとうございます。先輩のアドバイスとても参考になります！</p>
+            `;
+          endBtn.innerText = "チャットを終了して先輩を評価";
+          endBtn.onclick = () => openReview();
+        }
+        changeScreen("scr-chat");
+      }
+
+      function openReview() {
+        selectedReviewTags = [];
+        globalSuggestedTagId = null;
+
+        const existContainer = document.getElementById(
+          "review-options-container",
+        );
+        const suggestContainer = document.getElementById(
+          "suggest-options-container",
+        );
+        existContainer.innerHTML = "";
+        suggestContainer.innerHTML = "";
+
+        const kentaSkillIds = kentaData.skills.map((s) => s.tagId);
+
+        tagNames.forEach((name, idx) => {
+          const option = document.createElement("div");
+          option.innerText = `# ${name}`;
+
+          if (kentaSkillIds.includes(idx)) {
+            option.className = "review-option";
+            option.id = `opt-exist-${idx}`;
+            option.onclick = () => {
+              if (selectedReviewTags.includes(idx)) {
+                selectedReviewTags = selectedReviewTags.filter(
+                  (id) => id !== idx,
+                );
+                option.classList.remove("selected");
+              } else {
+                selectedReviewTags.push(idx);
+                option.classList.add("selected");
+              }
+            };
+            existContainer.appendChild(option);
+          } else {
+            option.className = "review-option suggest-type";
+            option.id = `opt-suggest-${idx}`;
+            option.onclick = () => {
+              document
+                .querySelectorAll(".suggest-type")
+                .forEach((el) => el.classList.remove("selected"));
+              if (globalSuggestedTagId === idx) {
+                globalSuggestedTagId = null;
+              } else {
+                globalSuggestedTagId = idx;
+                option.classList.add("selected");
+              }
+            };
+            suggestContainer.appendChild(option);
+          }
+        });
+        changeScreen("scr-review");
+      }
+
+      function submitReview() {
+        if (selectedReviewTags.length === 0 && globalSuggestedTagId === null) {
+          alert("評価項目か、新しく提案する項目を選択してください。");
+          return;
+        }
+
+        selectedReviewTags.forEach((tagId) => {
+          const skill = kentaData.skills.find((s) => s.tagId === tagId);
+          if (skill) {
+            const oldRank = getSkillRankInfo(skill.exp).label;
+            skill.exp += 15;
+            const newRank = getSkillRankInfo(skill.exp).label;
+            if (newRank !== oldRank) {
+              pendingLvlUpMessage += `「${tagNames[tagId]}」が 【${newRank}】 にランクアップしました！\n`;
+            }
+          }
+        });
+
+        if (globalSuggestedTagId !== null) {
+          alert(
+            `フィードバック送信完了！\n${kentaData.name}先輩に「${tagNames[globalSuggestedTagId]}」の獲得推薦を送りました。`,
+          );
+        } else {
+          alert("フィードバックの送信が完了しました！");
+        }
+
+        changeScreen("scr-role");
+      }
+
+      function goToMyPageAfterLvlUp() {
+        selectRole("大学生");
+      }
+
+      function acceptSuggestedTag() {
+        if (globalSuggestedTagId === null) return;
+        kentaData.skills.push({ tagId: globalSuggestedTagId, exp: 0 });
+
+        alert(
+          `承認しました！新しいステータス「# ${tagNames[globalSuggestedTagId]}」があなたのスキル（🥉 Bronze）に加わりました！`,
+        );
+        globalSuggestedTagId = null;
+
+        document.getElementById("suggest-notice").style.display = "none";
+        renderMyTagsForm();
+        updateAvailableTagsSelect();
+      }
+    </script>
+  </body>
+</html>
