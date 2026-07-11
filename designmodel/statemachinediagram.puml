@@ -1,4 +1,6 @@
 @startuml
+    skinparam dpi 300
+    skinparam backgroundColor white
     left to right direction
     state StateTop as "<img:top.png>" : stateTop
     state StateTutorSettings as "<img:tutor_settings.png>" : stateTutorSettings
