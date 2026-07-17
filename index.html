@@ -746,7 +746,7 @@
           questionerTypeLocked: true,
         },
         kaito: {
-          name: "カイト (高2)",
+          name: "カイトの保護者 (高2)",
           desc: "サークルやバイトなど、大学生活のリアルな話を聞いてみたいです。",
           tags: [3, 4],
           questionerType: "保護者",
@@ -950,7 +950,7 @@
           c.innerHTML += `
               <div class="partner-card">
                   <div class="match-badge" style="right: 10px;">マッチ度 ${score}%</div>
-                  <div class="role-badge">👦 高校生（質問側）</div><br>
+                  <div class="role-badge">👦 高校生</div><br>
                   ${questionerTypeBadgeHtml(key)}<br>
                   <strong style="font-size:16px;">${partner.name}</strong>
                   <p style="font-size:12px; font-weight:bold; margin:4px 0; color:#e17055;">🔔 承認待ちの申請</p>
@@ -1441,7 +1441,7 @@
               container.innerHTML += `
                   <div class="partner-card">
                       <button class="delete-card-btn" onclick="removeKouhaiFromList('${key}')">✕</button>
-                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div><br>
+                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生"}</div><br>
                       ${questionerTypeBadgeHtml(key)}<br>
                       <strong style="font-size:16px;">${partner.name}</strong>
                       <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
