@@ -373,11 +373,67 @@
           🗂 チャット履歴を見る
         </button>
         <button
+          class="btn"
+          onclick="openStatusEdit()"
+          style="background: #8e44ad; padding: 8px; font-size: 14px"
+        >
+          ⚙️ ステータスを編集する
+        </button>
+        <button
           class="btn btn-secondary"
           onclick="changeScreen('scr-role')"
           style="padding: 8px; font-size: 14px"
         >
           ログアウト・立場切替
+        </button>
+      </div>
+
+      <div id="scr-status" class="screen">
+        <h2 id="status-title">ステータス編集</h2>
+        <p
+          id="status-desc"
+          style="
+            text-align: center;
+            font-size: 11px;
+            color: #747d8c;
+            margin: 0 0 5px;
+          "
+        ></p>
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px">
+          <div class="tag-container" id="status-tag-container"></div>
+
+          <div
+            id="status-add-skill-area"
+            class="add-skill-box"
+            style="display: none"
+          >
+            <label style="font-size: 12px; font-weight: bold; color: #2f3542"
+              >➕ 新しいステータスを自主追加</label
+            >
+            <select
+              id="status-available-tags-select"
+              style="margin-top: 5px; padding: 6px; font-size: 12px"
+            ></select>
+            <button
+              class="btn btn-suggest"
+              style="
+                background: #0984e3;
+                width: 100%;
+                margin-top: 8px;
+                padding: 8px;
+              "
+              onclick="addSkillBySelf('status-available-tags-select')"
+            >
+              🥉 選択したスキルを追加
+            </button>
+          </div>
+        </div>
+        <button
+          class="btn btn-secondary"
+          onclick="closeStatusEdit()"
+          style="padding: 8px; font-size: 14px"
+        >
+          ← 相手選択画面に戻る
         </button>
       </div>
 
@@ -758,8 +814,8 @@
       }
 
       // 大学生自身が新スキルを「自主追加」する機能
-      function addSkillBySelf() {
-        const selectEl = document.getElementById("available-tags-select");
+      function addSkillBySelf(selectId = "available-tags-select") {
+        const selectEl = document.getElementById(selectId);
         const selectedId = parseInt(selectEl.value);
 
         if (isNaN(selectedId)) {
@@ -774,27 +830,42 @@
 
         renderMyTagsForm();
         updateAvailableTagsSelect();
+        renderStatusTagContainer();
+      }
+
+      // 大学生自身がスキルを削除する機能
+      function removeSkillBySelf(tagId) {
+        if (!confirm(`「${tagNames[tagId]}」を削除しますか？`)) return;
+        kentaData.skills = kentaData.skills.filter((s) => s.tagId !== tagId);
+        renderMyTagsForm();
+        updateAvailableTagsSelect();
+        renderStatusTagContainer();
       }
 
       function updateAvailableTagsSelect() {
-        const selectEl = document.getElementById("available-tags-select");
-        selectEl.innerHTML = "";
-        const kentaSkillIds = kentaData.skills.map((s) => s.tagId);
+        ["available-tags-select", "status-available-tags-select"].forEach(
+          (selectId) => {
+            const selectEl = document.getElementById(selectId);
+            if (!selectEl) return;
+            selectEl.innerHTML = "";
+            const kentaSkillIds = kentaData.skills.map((s) => s.tagId);
 
-        let hasNewTags = false;
-        tagNames.forEach((name, idx) => {
-          if (!kentaSkillIds.includes(idx)) {
-            const opt = document.createElement("option");
-            opt.value = idx;
-            opt.innerText = name;
-            selectEl.appendChild(opt);
-            hasNewTags = true;
-          }
-        });
+            let hasNewTags = false;
+            tagNames.forEach((name, idx) => {
+              if (!kentaSkillIds.includes(idx)) {
+                const opt = document.createElement("option");
+                opt.value = idx;
+                opt.innerText = name;
+                selectEl.appendChild(opt);
+                hasNewTags = true;
+              }
+            });
 
-        if (!hasNewTags) {
-          selectEl.innerHTML = `<option>すべてのスキルを習得済みです</option>`;
-        }
+            if (!hasNewTags) {
+              selectEl.innerHTML = `<option>すべてのスキルを習得済みです</option>`;
+            }
+          },
+        );
       }
 
       function renderMyTagsForm() {
@@ -821,11 +892,76 @@
           highschoolerData.tags = highschoolerData.tags.filter(
             (id) => id !== idx,
           );
-          btn.classList.remove("selected");
+          if (btn) btn.classList.remove("selected");
         } else {
           highschoolerData.tags.push(idx);
-          btn.classList.add("selected");
+          if (btn) btn.classList.add("selected");
         }
+        renderStatusTagContainer();
+      }
+
+      // ステータス（保有ステータス／お悩みタグ）の追加・削除画面
+      function openStatusEdit() {
+        const title = document.getElementById("status-title");
+        const desc = document.getElementById("status-desc");
+        const addArea = document.getElementById("status-add-skill-area");
+
+        if (myRole === "大学生") {
+          title.innerText = "保有ステータスの編集";
+          desc.innerText = "スキルの追加・削除ができます";
+          addArea.style.display = "block";
+          updateAvailableTagsSelect();
+        } else {
+          title.innerText = "お悩みステータスの編集";
+          desc.innerText = "気になることをタップして追加・削除できます";
+          addArea.style.display = "none";
+        }
+
+        renderStatusTagContainer();
+        changeScreen("scr-status");
+      }
+
+      function renderStatusTagContainer() {
+        const container = document.getElementById("status-tag-container");
+        if (!container) return;
+        container.innerHTML = "";
+
+        if (myRole === "大学生") {
+          if (kentaData.skills.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:12px;">まだステータスがありません。下から追加してください。</p>`;
+            return;
+          }
+          kentaData.skills.forEach((skill) => {
+            const rank = getSkillRankInfo(skill.exp);
+            const wrap = document.createElement("div");
+            wrap.className = `skill-tag ${rank.className}`;
+            wrap.style.margin = "4px 0";
+            wrap.innerHTML = `
+                    <span># ${tagNames[skill.tagId]}</span>
+                    <span style="display:flex; align-items:center; gap:6px;">
+                        ${rank.label}
+                        <button class="btn-suggest" style="background:#ff4757; padding:2px 8px; margin:0;" onclick="removeSkillBySelf(${skill.tagId})">✕</button>
+                    </span>
+                `;
+            container.appendChild(wrap);
+          });
+        } else {
+          tagNames.forEach((name, idx) => {
+            const isSel = highschoolerData.tags.includes(idx)
+              ? "selected"
+              : "";
+            const btn = document.createElement("button");
+            btn.className = `tag-btn ${isSel}`;
+            btn.innerText = `# ${name}`;
+            btn.onclick = () => toggleHighschoolerTag(idx);
+            container.appendChild(btn);
+          });
+        }
+      }
+
+      function closeStatusEdit() {
+        generateMatchTimeline();
+        changeScreen("scr-match");
       }
 
       function generateMatchTimeline() {
@@ -1087,7 +1223,8 @@
           alert("フィードバックの送信が完了しました！");
         }
 
-        changeScreen("scr-role");
+        generateMatchTimeline();
+        changeScreen("scr-match");
       }
 
       function goToMyPageAfterLvlUp() {
@@ -1106,6 +1243,7 @@
         document.getElementById("suggest-notice").style.display = "none";
         renderMyTagsForm();
         updateAvailableTagsSelect();
+        renderStatusTagContainer();
       }
     </script>
   </body>
