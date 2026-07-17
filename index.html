@@ -366,6 +366,35 @@
             <input text="text" id="user-name" value="" />
           </div>
 
+          <div id="questioner-type-fields" style="display: none">
+            <div class="form-group">
+              <label>あなたの立場</label>
+              <div style="display: flex; gap: 8px">
+                <button
+                  type="button"
+                  id="qtype-btn-student"
+                  class="tag-btn"
+                  style="flex: 1; text-align: center"
+                  onclick="selectQuestionerType('高校生')"
+                >
+                  高校生本人
+                </button>
+                <button
+                  type="button"
+                  id="qtype-btn-parent"
+                  class="tag-btn"
+                  style="flex: 1; text-align: center"
+                  onclick="selectQuestionerType('保護者')"
+                >
+                  保護者
+                </button>
+              </div>
+              <div id="qtype-lock-msg" class="lock-notice" style="display: none">
+                🔒 初回登録以降、変更できません
+              </div>
+            </div>
+          </div>
+
           <div id="univ-fields" style="display: none">
             <div class="form-group">
               <label>学部</label>
@@ -706,21 +735,29 @@
           name: "ショウタ (高3)",
           desc: "経済学部を志望しています。学費免除の方法やサークル生活について知りたいです。",
           tags: [2, 3],
+          questionerType: "", // 初期状態：未選択（初回登録時のみ選択可能）
+          questionerTypeLocked: false,
         },
         hanako: {
           name: "ハナコ (高2)",
           desc: "まだやりたいことが決まっていません。文理選択で悩んでいます。",
           tags: [0, 4],
+          questionerType: "高校生",
+          questionerTypeLocked: true,
         },
         kaito: {
           name: "カイト (高2)",
           desc: "サークルやバイトなど、大学生活のリアルな話を聞いてみたいです。",
           tags: [3, 4],
+          questionerType: "保護者",
+          questionerTypeLocked: true,
         },
         yuki: {
           name: "ユキ (高1)",
           desc: "やりたいことがあるので、そのために必要なことを知りたいです。",
           tags: [1, 2],
+          questionerType: "高校生",
+          questionerTypeLocked: true,
         },
       };
       let highschoolerData = HIGHSCHOOLERS.shota; // 高校生視点でプレイする本人（同じオブジェクトを参照）
@@ -743,6 +780,18 @@
       let pendingLvlUpMessage = "";
       let selectedReviewTags = [];
       let myRole = "";
+      let selectedQuestionerType = ""; // 登録画面で選択中の立場（保存前の一時状態）
+
+      function selectQuestionerType(type) {
+        if (highschoolerData.questionerTypeLocked) return;
+        selectedQuestionerType = type;
+        document
+          .getElementById("qtype-btn-student")
+          .classList.toggle("selected", type === "高校生");
+        document
+          .getElementById("qtype-btn-parent")
+          .classList.toggle("selected", type === "保護者");
+      }
 
       // ===== お気に入り・申請・チャット履歴（高校生視点）=====
       const SENPAI = { kenta: { name: "ケンタ" } }; // 先輩マスタ（デモは1名）
@@ -761,6 +810,14 @@
 
       function partnerName(key) {
         return SENPAI[key] ? SENPAI[key].name + "先輩" : key;
+      }
+
+      // 大学生側から見える「高校生本人／保護者」のステータス表示
+      function questionerTypeBadgeHtml(key) {
+        const partner = HIGHSCHOOLERS[key];
+        if (!partner || !partner.questionerType) return "";
+        const isParent = partner.questionerType === "保護者";
+        return `<span class="role-badge" style="background:#fff0f6; color:#c2255c; margin-left:4px;">${isParent ? "👪 保護者" : "👤 高校生本人"}</span>`;
       }
 
       function computeMatchScore(skills, targetTags) {
@@ -894,7 +951,8 @@
 
           c.innerHTML += `
               <div class="partner-card">
-                  <div class="role-badge">👦 高校生（質問側）</div><br>
+                  <div class="role-badge">👦 高校生（質問側）</div>
+                  ${questionerTypeBadgeHtml(key)}<br>
                   <strong style="font-size:16px;">${partner.name}</strong>
                   <p style="font-size:12px; font-weight:bold; margin:4px 0; color:#e17055;">🔔 承認待ちの申請</p>
                   <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
@@ -1035,6 +1093,10 @@
         const univFields = document.getElementById("univ-fields");
         const selfAddArea = document.getElementById("univ-add-skill-area");
         const noticeBox = document.getElementById("suggest-notice");
+        const qtypeFields = document.getElementById("questioner-type-fields");
+        const qtypeBtnStudent = document.getElementById("qtype-btn-student");
+        const qtypeBtnParent = document.getElementById("qtype-btn-parent");
+        const qtypeLockMsg = document.getElementById("qtype-lock-msg");
 
         const facultyInput = document.getElementById("user-faculty");
         const deptInput = document.getElementById("user-department");
@@ -1048,6 +1110,7 @@
           document.getElementById("reg-title").innerText = "先輩マイページ設定";
           univFields.style.display = "block";
           selfAddArea.style.display = "block";
+          qtypeFields.style.display = "none";
           document.getElementById("user-name").value = kentaData.name;
 
           // 学部学科の入力値をセット
@@ -1088,7 +1151,33 @@
             "あなた（高校生）のお悩み登録";
           univFields.style.display = "none";
           selfAddArea.style.display = "none";
+          qtypeFields.style.display = "block";
           document.getElementById("user-name").value = highschoolerData.name;
+
+          // ★ すでに初回登録済みなら「変更不可」にする
+          selectedQuestionerType = highschoolerData.questionerType;
+          qtypeBtnStudent.classList.toggle(
+            "selected",
+            highschoolerData.questionerType === "高校生",
+          );
+          qtypeBtnParent.classList.toggle(
+            "selected",
+            highschoolerData.questionerType === "保護者",
+          );
+          if (highschoolerData.questionerTypeLocked) {
+            qtypeBtnStudent.disabled = true;
+            qtypeBtnParent.disabled = true;
+            qtypeBtnStudent.style.cursor = "not-allowed";
+            qtypeBtnParent.style.cursor = "not-allowed";
+            qtypeLockMsg.style.display = "block";
+          } else {
+            qtypeBtnStudent.disabled = false;
+            qtypeBtnParent.disabled = false;
+            qtypeBtnStudent.style.cursor = "pointer";
+            qtypeBtnParent.style.cursor = "pointer";
+            qtypeLockMsg.style.display = "none";
+          }
+
           changeScreen("scr-reg");
         }
       }
@@ -1115,6 +1204,19 @@
             kentaData.hasRegistered = true;
             alert(
               "初回登録が完了しました！これで大学・学部学科はロックされます。",
+            );
+          }
+        } else {
+          // 高校生視点：立場（高校生本人／保護者）の初回登録
+          if (!highschoolerData.questionerTypeLocked) {
+            if (!selectedQuestionerType) {
+              alert("あなたの立場（高校生本人／保護者）を選択してください。");
+              return;
+            }
+            highschoolerData.questionerType = selectedQuestionerType;
+            highschoolerData.questionerTypeLocked = true;
+            alert(
+              "初回登録が完了しました！これで立場（高校生本人／保護者）はロックされます。",
             );
           }
         }
@@ -1340,7 +1442,8 @@
                   <div class="partner-card">
                       <button class="delete-card-btn" onclick="removeKouhaiFromList('${key}')">✕</button>
                       <div class="match-badge">マッチ度 ${score}%</div>
-                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div><br>
+                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div>
+                      ${questionerTypeBadgeHtml(key)}<br>
                       <strong style="font-size:16px;">${partner.name}</strong>
                       <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
                       <div style="margin-top:10px;">${hstagsHtml}</div>
