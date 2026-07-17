@@ -943,6 +943,7 @@
         pendingKeys.forEach((key) => {
           const partner = HIGHSCHOOLERS[key];
           if (!partner) return;
+          const score = computeMatchScore(kentaData.skills, partner.tags);
 
           let hstagsHtml = "";
           partner.tags.forEach((t) => {
@@ -951,6 +952,7 @@
 
           c.innerHTML += `
               <div class="partner-card">
+                  <div class="match-badge" style="right: 10px;">マッチ度 ${score}%</div>
                   <div class="role-badge">👦 高校生（質問側）</div><br>
                   ${questionerTypeBadgeHtml(key)}<br>
                   <strong style="font-size:16px;">${partner.name}</strong>
@@ -1428,7 +1430,6 @@
             sortedKouhai.forEach((key) => {
               const partner = HIGHSCHOOLERS[key];
               if (!partner) return;
-              const score = computeMatchScore(kentaData.skills, partner.tags);
 
               let hstagsHtml = "";
               partner.tags.forEach((t) => {
@@ -1443,7 +1444,6 @@
               container.innerHTML += `
                   <div class="partner-card">
                       <button class="delete-card-btn" onclick="removeKouhaiFromList('${key}')">✕</button>
-                      <div class="match-badge">マッチ度 ${score}%</div>
                       <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div><br>
                       ${questionerTypeBadgeHtml(key)}<br>
                       <strong style="font-size:16px;">${partner.name}</strong>
