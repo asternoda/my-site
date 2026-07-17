@@ -260,6 +260,42 @@
         border-radius: 12px;
         margin-top: 15px;
       }
+
+      /* 自動で消えるポップアップ通知 */
+      .toast-popup {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        background: var(--accent-color);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        z-index: 999;
+        white-space: nowrap;
+        animation: toastPop 2.5s ease forwards;
+        pointer-events: none;
+      }
+      @keyframes toastPop {
+        0% {
+          opacity: 0;
+          transform: translate(-50%, -10px);
+        }
+        15% {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+        85% {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-50%, -10px);
+        }
+      }
     </style>
   </head>
   <body>
@@ -461,6 +497,11 @@
 
       <div id="scr-chatlog" class="screen">
         <h2 id="chatlog-title">チャット履歴</h2>
+        <button
+          class="btn"
+          id="chatlog-fav-btn"
+          style="padding: 8px; font-size: 13px; margin-top: 0"
+        ></button>
         <div
           style="
             flex: 1;
@@ -523,7 +564,7 @@
             margin-top: 5px;
           "
         >
-          先輩が持っているステータス（成長対象）
+          先輩が持っているステータス
         </div>
         <div id="review-options-container"></div>
 
@@ -639,12 +680,12 @@
         generateMatchTimeline();
       }
 
-      function sendApplication(key) {
-        applications[key] = "pending";
-        alert(
-          `${partnerName(key)}に相談申請を送りました。\n承認されるとチャットを開始できます。`,
-        );
-        generateMatchTimeline();
+      function showToast(message) {
+        const toast = document.createElement("div");
+        toast.className = "toast-popup";
+        toast.innerText = message;
+        document.querySelector(".phone-mock").appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
       }
 
       // 通常の相談申請（デモ用：数秒後に自動で承認される）
@@ -655,6 +696,7 @@
           applications[key] = "approved";
           generateMatchTimeline();
           confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+          showToast("申請が承認されました！");
         }, 3000);
       }
 
@@ -669,6 +711,16 @@
         startChatRoom();
       }
 
+      function toggleFavoriteFromHistory(key) {
+        toggleFavorite(key);
+        openHistoryList();
+      }
+
+      function toggleFavoriteFromChatlog(key) {
+        toggleFavorite(key);
+        viewHistory(key);
+      }
+
       function openHistoryList() {
         const c = document.getElementById("history-list-container");
         c.innerHTML = "";
@@ -679,14 +731,16 @@
           keys.forEach((key) => {
             const logs = chatHistories[key];
             const last = logs[logs.length - 1];
+            const isFav = favorites.includes(key);
             const card = document.createElement("div");
             card.className = "partner-card";
-            card.style.cursor = "pointer";
-            card.onclick = () => viewHistory(key);
             card.innerHTML = `
-                <strong style="font-size:15px;">${partnerName(key)}</strong>
-                <p style="font-size:12px; color:#57606f; margin:6px 0 0;">最新: ${last.who}「${last.text}」</p>
-                <p style="font-size:11px; color:#a4b0be; margin:4px 0 0;">${logs.length}件のメッセージ ・ タップで全文表示</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="viewHistory('${key}')">
+                    <strong style="font-size:15px;">${partnerName(key)}</strong>
+                    <button class="btn-suggest" style="background:${isFav ? "#ced6e0" : "#ff9f43"}; color:${isFav ? "#2f3542" : "white"};" onclick="event.stopPropagation(); toggleFavoriteFromHistory('${key}')">${isFav ? "★ 解除" : "☆ お気に入り"}</button>
+                </div>
+                <p style="font-size:12px; color:#57606f; margin:6px 0 0; cursor:pointer;" onclick="viewHistory('${key}')">最新: ${last.who}「${last.text}」</p>
+                <p style="font-size:11px; color:#a4b0be; margin:4px 0 0; cursor:pointer;" onclick="viewHistory('${key}')">${logs.length}件のメッセージ ・ タップで全文表示</p>
             `;
             c.appendChild(card);
           });
@@ -697,6 +751,16 @@
       function viewHistory(key) {
         document.getElementById("chatlog-title").innerText =
           partnerName(key) + " との履歴";
+
+        const isFav = favorites.includes(key);
+        const favBtn = document.getElementById("chatlog-fav-btn");
+        favBtn.style.background = isFav ? "#ced6e0" : "#ff9f43";
+        favBtn.style.color = isFav ? "#2f3542" : "white";
+        favBtn.innerText = isFav
+          ? "★ お気に入り登録済み（解除する）"
+          : "☆ お気に入りに登録";
+        favBtn.onclick = () => toggleFavoriteFromChatlog(key);
+
         const box = document.getElementById("chatlog-content");
         box.innerHTML = "";
         (chatHistories[key] || []).forEach((m) => {
@@ -1093,7 +1157,7 @@
           container.innerHTML = `
                 <div class="partner-card">
                     <div class="match-badge">おすすめ度 ${score}%</div>
-                    <div class="role-badge">🎓 大学生（対応側）</div><br>
+                    <div class="role-badge">🎓 大学生</div><br>
                     <strong style="font-size:16px;">${kentaData.name}先輩</strong>
                     <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
                     <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
@@ -1104,24 +1168,15 @@
                 </div>
             `;
 
-          // お気に入りの先輩（申請・承認・チャット開始）
+          // お気に入りの先輩（申請不要でそのままチャット開始）
           if (favorites.length > 0) {
             let favSection = `<div style="font-weight:bold; font-size:13px; color:#2f3542; margin:15px 0 5px; border-top:1px dashed #ced6e0; padding-top:12px;">⭐ お気に入りの先輩</div>`;
             favorites.forEach((key) => {
-              const st = applications[key];
-              let actionBtn = "";
-              if (st === "approved") {
-                actionBtn = `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatFromApproved('${key}')">✅ 承認されました！チャットを開始</button>`;
-              } else if (st === "pending") {
-                actionBtn = `<div style="text-align:center; margin-top:10px; font-size:13px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`;
-              } else {
-                actionBtn = `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="sendApplication('${key}')">📩 相談を申請する</button>`;
-              }
               favSection += `
                 <div class="partner-card" style="margin-top:8px;">
                     <div class="role-badge">⭐ お気に入り</div><br>
                     <strong style="font-size:15px;">${partnerName(key)}</strong>
-                    ${actionBtn}
+                    <button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatFromApproved('${key}')">相談する</button>
                 </div>`;
             });
             container.innerHTML += favSection;
