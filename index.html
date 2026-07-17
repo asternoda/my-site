@@ -647,6 +647,17 @@
         generateMatchTimeline();
       }
 
+      // 通常の相談申請（デモ用：数秒後に自動で承認される）
+      function applyForConsult(key) {
+        applications[key] = "pending";
+        generateMatchTimeline();
+        setTimeout(() => {
+          applications[key] = "approved";
+          generateMatchTimeline();
+          confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+        }, 3000);
+      }
+
       function approveApplication(key) {
         applications[key] = "approved";
         alert(`${highschoolerData.name}さんからの相談申請を承認しました！`);
@@ -1069,6 +1080,16 @@
             ? ""
             : `<p style="font-size:10px; color:#a4b0be; margin:4px 0 0; text-align:center;">※ 一度チャット相談するとお気に入り登録できます</p>`;
 
+          const mainStatus = applications["kenta"];
+          let mainActionHtml;
+          if (mainStatus === "approved") {
+            mainActionHtml = `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">相談する</button>`;
+          } else if (mainStatus === "pending") {
+            mainActionHtml = `<div style="text-align:center; margin-top:15px; font-size:14px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`;
+          } else {
+            mainActionHtml = `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="applyForConsult('kenta')">チャットで相談する</button>`;
+          }
+
           container.innerHTML = `
                 <div class="partner-card">
                     <div class="match-badge">おすすめ度 ${score}%</div>
@@ -1077,7 +1098,7 @@
                     <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
                     <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
                     <div class="card-tags">${tagsHtml}</div>
-                    <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="startChatRoom()">チャットで相談する</button>
+                    ${mainActionHtml}
                     ${favBtnHtml}
                     ${favHint}
                 </div>
@@ -1092,7 +1113,7 @@
               if (st === "approved") {
                 actionBtn = `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatFromApproved('${key}')">✅ 承認されました！チャットを開始</button>`;
               } else if (st === "pending") {
-                actionBtn = `<div style="text-align:center; margin-top:10px; font-size:13px; color:#e17055; font-weight:bold;">⏳ 承認待ち…（先輩の承認をお待ちください）</div>`;
+                actionBtn = `<div style="text-align:center; margin-top:10px; font-size:13px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`;
               } else {
                 actionBtn = `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="sendApplication('${key}')">📩 相談を申請する</button>`;
               }
