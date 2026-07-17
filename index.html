@@ -879,6 +879,17 @@
         const displayDept = kentaData.dept || "未設定学科";
         const status = applications["shota"];
 
+        let tagsHtml = "";
+        kentaData.skills.forEach((skill) => {
+          const rankInfo = getSkillRankInfo(skill.exp);
+          tagsHtml += `
+                  <div class="skill-tag ${rankInfo.className}">
+                      <span># ${tagNames[skill.tagId]}</span>
+                      <span>${rankInfo.label}</span>
+                  </div>
+              `;
+        });
+
         const actionHtml =
           status === "pending"
             ? `<div style="text-align:center; margin-top:15px; font-size:14px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`
@@ -890,6 +901,7 @@
                 <strong style="font-size:16px;">${kentaData.name}先輩</strong>
                 <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
                 <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
+                <div class="card-tags">${tagsHtml}</div>
                 ${actionHtml}
             </div>`;
       }
@@ -1286,7 +1298,7 @@
                       <strong style="font-size:16px;">${partner.name}</strong>
                       <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
                       <div style="margin-top:10px;">${hstagsHtml}</div>
-                      <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom('${key}')">相談する</button>
+                      <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom('${key}')">相談を受ける</button>
                       ${favBtnHtml}
                   </div>
               `;
