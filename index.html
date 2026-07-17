@@ -421,6 +421,14 @@
         </button>
         <button
           class="btn"
+          id="senpai-search-btn"
+          onclick="openSenpaiSearch()"
+          style="background: #0984e3; padding: 8px; font-size: 14px; display: none"
+        >
+          🔍 先輩を探す
+        </button>
+        <button
+          class="btn"
           onclick="openStatusEdit()"
           style="background: #8e44ad; padding: 8px; font-size: 14px"
         >
@@ -508,6 +516,28 @@
         </button>
       </div>
 
+      <div id="scr-senpai-search" class="screen">
+        <h2>先輩を探す</h2>
+        <p
+          style="
+            text-align: center;
+            font-size: 11px;
+            color: #747d8c;
+            margin: 0 0 5px;
+          "
+        >
+          気になる先輩に相談を申請できます
+        </p>
+        <div class="result-list" id="senpai-search-container"></div>
+        <button
+          class="btn btn-secondary"
+          onclick="changeScreen('scr-match')"
+          style="padding: 8px; font-size: 14px"
+        >
+          ← 先輩一覧に戻る
+        </button>
+      </div>
+
       <div id="scr-history" class="screen">
         <h2>チャット履歴</h2>
         <p
@@ -570,12 +600,19 @@
           id="chat-box-content"
         ></div>
         <button
-          class="btn"
-          style="background: #0984e3"
-          id="end-chat-btn"
-          onclick="openReview()"
+          class="btn btn-secondary"
+          onclick="backToListFromChat()"
+          style="padding: 8px; font-size: 14px"
         >
-          チャットを終了して評価へ
+          ← 戻る
+        </button>
+        <button
+          class="btn"
+          id="end-chat-btn"
+          onclick="endChat()"
+          style="background: #0984e3; padding: 8px; font-size: 14px"
+        >
+          チャットを終了する
         </button>
       </div>
 
@@ -633,11 +670,30 @@
         "バイトと勉強の両立方法",
       ];
 
-      let highschoolerData = {
-        name: "ショウタ (高3)",
-        desc: "経済学部を志望しています。学費免除の方法やサークル生活について知りたいです。",
-        tags: [2, 3],
+      // 高校生候補データ（デモ用に複数名を配置。"shota" が実際にプレイする本人）
+      const HIGHSCHOOLERS = {
+        shota: {
+          name: "ショウタ (高3)",
+          desc: "経済学部を志望しています。学費免除の方法やサークル生活について知りたいです。",
+          tags: [2, 3],
+        },
+        hanako: {
+          name: "ハナコ (高2)",
+          desc: "まだやりたいことが決まっていません。文理選択で悩んでいます。",
+          tags: [0, 4],
+        },
+        kaito: {
+          name: "カイト (高2)",
+          desc: "サークルやバイトなど、大学生活のリアルな話を聞いてみたいです。",
+          tags: [3, 4],
+        },
+        yuki: {
+          name: "ユキ (高1)",
+          desc: "やりたいことがあるので、そのために必要なことを知りたいです。",
+          tags: [1, 2],
+        },
       };
+      let highschoolerData = HIGHSCHOOLERS.shota; // 高校生視点でプレイする本人（同じオブジェクトを参照）
 
       // 大学生「ケンタ」のデータ（初期値は未登録＝空欄にする）
       const kentaData = {
@@ -661,16 +717,43 @@
       // ===== お気に入り・申請・チャット履歴（高校生視点）=====
       const SENPAI = { kenta: { name: "ケンタ" } }; // 先輩マスタ（デモは1名）
       let favorites = []; // お気に入り登録した先輩キー ["kenta"]
-      let applications = {}; // 申請状態 { kenta: "pending" | "approved" }
+      // 申請状態（高校生キーで管理。相手先輩は常に "kenta" の1名）{ shota: "pending"|"approved", hanako: "approved", ... }
+      let applications = { hanako: "approved", kaito: "approved", yuki: "pending" };
       let chatHistories = {}; // 相手ごとのチャット録 { kenta: [{who,text,time}] }
-      let hasTalkedWith = {}; // 一度でも話したか { kenta: true }
+      // 一度でも話したか（先輩キー／後輩キー共通の名前空間で管理）
+      let hasTalkedWith = { hanako: true, kaito: true };
 
-      // ===== 後輩一覧・申請一覧（大学生視点）=====
-      const KOUHAI_KEY = "shota"; // 後輩マスタキー（デモは1名＝highschoolerData）
-      let kouhaiList = []; // 後輩一覧に追加済みの後輩キー ["shota"]
+      // ===== 先輩一覧（高校生視点）・後輩一覧（大学生視点）=====
+      let senpaiList = []; // 先輩一覧に追加済みの先輩キー ["kenta"]（高校生視点）
+      let kouhaiList = ["hanako", "kaito"]; // 後輩一覧に追加済みの後輩キー（デモ用に最初から複数配置）
+      let kouhaiFavorites = []; // お気に入り登録した後輩キー（大学生視点）
+      let activeChatKey = null; // 現在チャット中の相手キー
 
       function partnerName(key) {
         return SENPAI[key] ? SENPAI[key].name + "先輩" : key;
+      }
+
+      function computeMatchScore(skills, targetTags) {
+        let matchPoints = 0;
+        skills.forEach((skill) => {
+          if (targetTags.includes(skill.tagId)) {
+            matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
+          }
+        });
+        return targetTags.length > 0
+          ? Math.min(100, Math.round((matchPoints / targetTags.length) * 100))
+          : 0;
+      }
+
+      // 申請の承認を確定させ、双方の一覧に反映する共通処理
+      function markApplicationApproved(key) {
+        applications[key] = "approved";
+        if (!kouhaiList.includes(key)) {
+          kouhaiList.push(key);
+        }
+        if (key === "shota" && !senpaiList.includes("kenta")) {
+          senpaiList.push("kenta");
+        }
       }
 
       function logChat(key, who, text) {
@@ -695,6 +778,20 @@
         generateMatchTimeline();
       }
 
+      function toggleKouhaiFavorite(key) {
+        if (!hasTalkedWith[key]) {
+          alert("一度チャットで相談した後輩だけ、お気に入り登録できます。");
+          return;
+        }
+        if (kouhaiFavorites.includes(key)) {
+          kouhaiFavorites = kouhaiFavorites.filter((k) => k !== key);
+        } else {
+          kouhaiFavorites.push(key);
+          alert(`${HIGHSCHOOLERS[key].name}さんをお気に入りに登録しました！`);
+        }
+        generateMatchTimeline();
+      }
+
       function showToast(message) {
         const toast = document.createElement("div");
         toast.className = "toast-popup";
@@ -703,57 +800,97 @@
         setTimeout(() => toast.remove(), 2500);
       }
 
-      // 通常の相談申請（デモ用：数秒後に自動で承認される）
+      // 高校生から先輩への相談申請（デモ用：数秒後に自動で承認される）
       function applyForConsult(key) {
         applications[key] = "pending";
         generateMatchTimeline();
+        renderSenpaiSearch();
         setTimeout(() => {
-          applications[key] = "approved";
+          markApplicationApproved(key);
           generateMatchTimeline();
+          renderSenpaiSearch();
           confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-          showToast("申請が承認されました！");
+          showToast("マッチングが成立しました！");
         }, 3000);
       }
 
       function approveApplication(key) {
-        applications[key] = "approved";
-        if (!kouhaiList.includes(KOUHAI_KEY)) {
-          kouhaiList.push(KOUHAI_KEY);
-        }
+        markApplicationApproved(key);
         alert(
-          `${highschoolerData.name}さんからの相談申請を承認しました！\n後輩一覧に追加されました。`,
+          `${HIGHSCHOOLERS[key].name}さんからの相談申請を承認しました！\n後輩一覧に追加されました。`,
         );
         generateMatchTimeline();
-        openApplicationsList();
+        renderApplicationsList();
       }
 
-      function openApplicationsList() {
+      function renderApplicationsList() {
         const c = document.getElementById("applications-list-container");
         c.innerHTML = "";
 
-        // デモは後輩候補が常に1名（highschoolerData）届いている想定
-        const isAdded = kouhaiList.includes(KOUHAI_KEY);
-        const statusLabel = isAdded
-          ? `<span style="color:var(--accent-color);">✅ 承認済み（後輩一覧に追加済み）</span>`
-          : `<span style="color:#e17055;">🔔 承認待ちの申請</span>`;
-        const actionHtml = isAdded
-          ? ""
-          : `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('kenta')">申請を承認する</button>`;
+        const keys = Object.keys(applications);
+        if (keys.length === 0) {
+          c.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">現在、届いている相談申請はありません。</p>`;
+          return;
+        }
 
-        c.innerHTML = `
-            <div class="partner-card">
-                <div class="role-badge">👦 高校生（質問側）</div><br>
-                <strong style="font-size:16px;">${highschoolerData.name}</strong>
-                <p style="font-size:12px; font-weight:bold; margin:4px 0;">${statusLabel}</p>
-                <p style="font-size:13px; color:#57606f; margin:5px 0;">${highschoolerData.desc}</p>
-                ${actionHtml}
-            </div>`;
+        keys.forEach((key) => {
+          const partner = HIGHSCHOOLERS[key];
+          if (!partner) return;
+          const isAdded = kouhaiList.includes(key);
+          const statusLabel = isAdded
+            ? `<span style="color:var(--accent-color);">✅ 承認済み（後輩一覧に追加済み）</span>`
+            : `<span style="color:#e17055;">🔔 承認待ちの申請</span>`;
+          const actionHtml = isAdded
+            ? ""
+            : `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('${key}')">申請を承認する</button>`;
+
+          c.innerHTML += `
+              <div class="partner-card">
+                  <div class="role-badge">👦 高校生（質問側）</div><br>
+                  <strong style="font-size:16px;">${partner.name}</strong>
+                  <p style="font-size:12px; font-weight:bold; margin:4px 0;">${statusLabel}</p>
+                  <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
+                  ${actionHtml}
+              </div>`;
+        });
+      }
+
+      function openApplicationsList() {
+        renderApplicationsList();
         changeScreen("scr-applications");
       }
 
-      function startChatFromApproved(key) {
-        // 承認済みの先輩とのチャット開始（高校生視点）
-        startChatRoom();
+      function renderSenpaiSearch() {
+        const c = document.getElementById("senpai-search-container");
+        if (!c) return;
+        c.innerHTML = "";
+
+        const displayFaculty = kentaData.faculty || "未設定学部";
+        const displayDept = kentaData.dept || "未設定学科";
+        const status = applications["shota"];
+
+        let actionHtml;
+        if (senpaiList.includes("kenta")) {
+          actionHtml = `<p style="text-align:center; color:var(--accent-color); font-weight:bold; margin-top:15px; font-size:13px;">✅ マッチング成立済み！「先輩一覧」からチャットできます</p>`;
+        } else if (status === "pending") {
+          actionHtml = `<div style="text-align:center; margin-top:15px; font-size:14px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`;
+        } else {
+          actionHtml = `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="applyForConsult('shota')">チャットで相談を申請する</button>`;
+        }
+
+        c.innerHTML = `
+            <div class="partner-card">
+                <div class="role-badge">🎓 大学生</div><br>
+                <strong style="font-size:16px;">${kentaData.name}先輩</strong>
+                <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
+                <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
+                ${actionHtml}
+            </div>`;
+      }
+
+      function openSenpaiSearch() {
+        renderSenpaiSearch();
+        changeScreen("scr-senpai-search");
       }
 
       function toggleFavoriteFromHistory(key) {
@@ -1089,11 +1226,13 @@
         const titleEl = document.getElementById("match-screen-title");
         container.innerHTML = "";
 
-        // チャット履歴ボタンは高校生視点のみ、申請一覧ボタンは大学生視点のみ表示
+        // チャット履歴・申請一覧ボタンは高校生視点、先輩を探すボタンは高校生視点のみ表示
         document.getElementById("history-btn").style.display =
           myRole === "大学生" ? "none" : "block";
         document.getElementById("applications-btn").style.display =
           myRole === "大学生" ? "block" : "none";
+        document.getElementById("senpai-search-btn").style.display =
+          myRole === "大学生" ? "none" : "block";
 
         // まだ登録してない場合のフォールバック表示用
         const displayFaculty = kentaData.faculty || "未設定学部";
@@ -1112,151 +1251,114 @@
           if (kouhaiList.length === 0) {
             container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">まだ後輩が登録されていません。<br>「📋 申請一覧」から相談申請を承認してください。</p>`;
           } else {
-            let matchPoints = 0;
-            kentaData.skills.forEach((skill) => {
-              if (highschoolerData.tags.includes(skill.tagId)) {
-                matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
-              }
-            });
-            let score =
-              highschoolerData.tags.length > 0
-                ? Math.min(
-                    100,
-                    Math.round(
-                      (matchPoints / highschoolerData.tags.length) * 100,
-                    ),
-                  )
-                : 0;
+            // お気に入り登録した後輩を上位に並べ替え
+            const sortedKouhai = [...kouhaiList].sort(
+              (a, b) =>
+                Number(kouhaiFavorites.includes(b)) -
+                Number(kouhaiFavorites.includes(a)),
+            );
 
-            let hstagsHtml = "";
-            highschoolerData.tags.forEach((t) => {
-              hstagsHtml += `<span style="display:inline-block; background:#e2e8f0; font-size:11px; padding:3px 8px; border-radius:12px; margin:2px;"># ${tagNames[t]}</span>`;
-            });
+            sortedKouhai.forEach((key) => {
+              const partner = HIGHSCHOOLERS[key];
+              if (!partner) return;
+              const score = computeMatchScore(kentaData.skills, partner.tags);
 
-            container.innerHTML = `
-                <div class="partner-card">
-                    <div class="match-badge">マッチ度 ${score}%</div>
-                    <div class="role-badge">👦 高校生（質問側）</div><br>
-                    <strong style="font-size:16px;">${highschoolerData.name}</strong>
-                    <p style="font-size:13px; color:#57606f; margin:5px 0;">${highschoolerData.desc}</p>
-                    <div style="margin-top:10px;">${hstagsHtml}</div>
-                    <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">相談する</button>
-                </div>
-            `;
+              let hstagsHtml = "";
+              partner.tags.forEach((t) => {
+                hstagsHtml += `<span style="display:inline-block; background:#e2e8f0; font-size:11px; padding:3px 8px; border-radius:12px; margin:2px;"># ${tagNames[t]}</span>`;
+              });
+
+              const isFav = kouhaiFavorites.includes(key);
+              const favBtnHtml = isFav
+                ? `<button class="btn btn-secondary" style="width:100%; margin-top:8px; padding:8px; font-size:13px;" onclick="toggleKouhaiFavorite('${key}')">★ お気に入り登録済み（解除する）</button>`
+                : `<button class="btn" style="width:100%; margin-top:8px; padding:8px; font-size:13px; background:#ff9f43;" onclick="toggleKouhaiFavorite('${key}')">☆ お気に入りに登録</button>`;
+
+              container.innerHTML += `
+                  <div class="partner-card">
+                      <div class="match-badge">マッチ度 ${score}%</div>
+                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div><br>
+                      <strong style="font-size:16px;">${partner.name}</strong>
+                      <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
+                      <div style="margin-top:10px;">${hstagsHtml}</div>
+                      <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom('${key}')">相談する</button>
+                      ${favBtnHtml}
+                  </div>
+              `;
+            });
           }
         } else {
-          titleEl.innerText = "おすすめの先輩一覧";
+          titleEl.innerText = "先輩一覧";
 
           kentaData.skills.sort((a, b) => b.exp - a.exp);
 
-          let matchPoints = 0;
-          kentaData.skills.forEach((skill) => {
-            if (highschoolerData.tags.includes(skill.tagId)) {
-              matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
-            }
-          });
-          let score =
-            highschoolerData.tags.length > 0
-              ? Math.min(
-                  100,
-                  Math.round(
-                    (matchPoints / highschoolerData.tags.length) * 100,
-                  ),
-                )
-              : 0;
-
-          let tagsHtml = "";
-          kentaData.skills.forEach((skill) => {
-            const rankInfo = getSkillRankInfo(skill.exp);
-            const isMatch = highschoolerData.tags.includes(skill.tagId)
-              ? "border: 2px solid var(--accent-color);"
-              : "";
-            tagsHtml += `
-                    <div class="skill-tag ${rankInfo.className}" style="${isMatch}">
-                        <span># ${tagNames[skill.tagId]}</span>
-                        <span>${rankInfo.label}</span>
-                    </div>
-                `;
-          });
-
-          const isFav = favorites.includes("kenta");
-          const favBtnHtml = isFav
-            ? `<button class="btn btn-secondary" style="width:100%; margin-top:8px; padding:8px; font-size:13px;" onclick="toggleFavorite('kenta')">★ お気に入り登録済み（解除する）</button>`
-            : `<button class="btn" style="width:100%; margin-top:8px; padding:8px; font-size:13px; background:#ff9f43;" onclick="toggleFavorite('kenta')">☆ お気に入りに登録</button>`;
-          const favHint = hasTalkedWith["kenta"]
-            ? ""
-            : `<p style="font-size:10px; color:#a4b0be; margin:4px 0 0; text-align:center;">※ 一度チャット相談するとお気に入り登録できます</p>`;
-
-          const mainStatus = applications["kenta"];
-          let mainActionHtml;
-          if (mainStatus === "approved") {
-            mainActionHtml = `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">相談する</button>`;
-          } else if (mainStatus === "pending") {
-            mainActionHtml = `<div style="text-align:center; margin-top:15px; font-size:14px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`;
+          if (senpaiList.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">まだ先輩が登録されていません。<br>「🔍 先輩を探す」から相談を申請してください。</p>`;
           } else {
-            mainActionHtml = `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="applyForConsult('kenta')">チャットで相談する</button>`;
-          }
+            const score = computeMatchScore(
+              kentaData.skills,
+              highschoolerData.tags,
+            );
 
-          container.innerHTML = `
-                <div class="partner-card">
-                    <div class="match-badge">おすすめ度 ${score}%</div>
-                    <div class="role-badge">🎓 大学生</div><br>
-                    <strong style="font-size:16px;">${kentaData.name}先輩</strong>
-                    <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
-                    <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
-                    <div class="card-tags">${tagsHtml}</div>
-                    ${mainActionHtml}
-                    ${favBtnHtml}
-                    ${favHint}
-                </div>
-            `;
-
-          // お気に入りの先輩（申請不要でそのままチャット開始）
-          if (favorites.length > 0) {
-            let favSection = `<div style="font-weight:bold; font-size:13px; color:#2f3542; margin:15px 0 5px; border-top:1px dashed #ced6e0; padding-top:12px;">⭐ お気に入りの先輩</div>`;
-            favorites.forEach((key) => {
-              favSection += `
-                <div class="partner-card" style="margin-top:8px;">
-                    <div class="role-badge">⭐ お気に入り</div><br>
-                    <strong style="font-size:15px;">${partnerName(key)}</strong>
-                    <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
-                    <div class="card-tags">${tagsHtml}</div>
-                    <button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatFromApproved('${key}')">相談する</button>
-                </div>`;
+            let tagsHtml = "";
+            kentaData.skills.forEach((skill) => {
+              const rankInfo = getSkillRankInfo(skill.exp);
+              const isMatch = highschoolerData.tags.includes(skill.tagId)
+                ? "border: 2px solid var(--accent-color);"
+                : "";
+              tagsHtml += `
+                      <div class="skill-tag ${rankInfo.className}" style="${isMatch}">
+                          <span># ${tagNames[skill.tagId]}</span>
+                          <span>${rankInfo.label}</span>
+                      </div>
+                  `;
             });
-            container.innerHTML += favSection;
+
+            // お気に入り登録した先輩を上位に並べ替え（デモは先輩1名）
+            const sortedSenpai = [...senpaiList].sort(
+              (a, b) =>
+                Number(favorites.includes(b)) - Number(favorites.includes(a)),
+            );
+
+            sortedSenpai.forEach((key) => {
+              const isFav = favorites.includes(key);
+              const favBtnHtml = isFav
+                ? `<button class="btn btn-secondary" style="width:100%; margin-top:8px; padding:8px; font-size:13px;" onclick="toggleFavorite('${key}')">★ お気に入り登録済み（解除する）</button>`
+                : `<button class="btn" style="width:100%; margin-top:8px; padding:8px; font-size:13px; background:#ff9f43;" onclick="toggleFavorite('${key}')">☆ お気に入りに登録</button>`;
+              const favHint = hasTalkedWith[key]
+                ? ""
+                : `<p style="font-size:10px; color:#a4b0be; margin:4px 0 0; text-align:center;">※ 一度チャット相談するとお気に入り登録できます</p>`;
+
+              container.innerHTML += `
+                  <div class="partner-card">
+                      <div class="match-badge">おすすめ度 ${score}%</div>
+                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "🎓 大学生"}</div><br>
+                      <strong style="font-size:16px;">${kentaData.name}先輩</strong>
+                      <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
+                      <div class="dept-badge">🏫 ${displayFaculty} / ${displayDept}</div>
+                      <div class="card-tags">${tagsHtml}</div>
+                      <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom('${key}')">相談する</button>
+                      ${favBtnHtml}
+                      ${favHint}
+                  </div>
+              `;
+            });
           }
         }
       }
 
-      function startChatRoom() {
+      function startChatRoom(key) {
+        activeChatKey = key;
         const chatBox = document.getElementById("chat-box-content");
-        const endBtn = document.getElementById("end-chat-btn");
 
         if (myRole === "大学生") {
+          const partner = HIGHSCHOOLERS[key];
           chatBox.innerHTML = `
                 <p><strong>あなた(ケンタ先輩):</strong> マッチングありがとうございます！所属は【${kentaData.faculty}】です、何でも聞いてね！</p>
-                <p><strong>${highschoolerData.name}:</strong> ありがとうございます！よろしくお願いします！</p>
+                <p><strong>${partner.name}:</strong> ありがとうございます！よろしくお願いします！</p>
             `;
-          endBtn.innerText = "チャットを終了して一覧へ戻る";
-          endBtn.onclick = () => {
-            // デモ用：相談で役に立ったステータスへ経験値を付与
-            kentaData.skills.forEach((skill) => {
-              if (highschoolerData.tags.includes(skill.tagId)) {
-                const oldRank = getSkillRankInfo(skill.exp).label;
-                skill.exp += 15;
-                const newRank = getSkillRankInfo(skill.exp).label;
-                if (newRank !== oldRank) {
-                  pendingLvlUpMessage += `「${tagNames[skill.tagId]}」が 【${newRank}】 にランクアップしました！\n`;
-                }
-              }
-            });
-            generateMatchTimeline();
-            changeScreen("scr-match");
-          };
         } else {
           // 高校生視点：一度話した記録を残し、相手ごとのチャット録に保存
-          hasTalkedWith["kenta"] = true;
+          hasTalkedWith[key] = true;
           const sessionMsgs = [
             { who: kentaData.name + "先輩", text: "何でも気軽に聞いてくださいね！" },
             {
@@ -1264,14 +1366,40 @@
               text: "ありがとうございます。先輩のアドバイスとても参考になります！",
             },
           ];
-          sessionMsgs.forEach((m) => logChat("kenta", m.who, m.text));
+          sessionMsgs.forEach((m) => logChat(key, m.who, m.text));
           chatBox.innerHTML = sessionMsgs
             .map((m) => `<p><strong>${m.who}:</strong> ${m.text}</p>`)
             .join("");
-          endBtn.innerText = "チャットを終了して先輩を評価";
-          endBtn.onclick = () => openReview();
         }
         changeScreen("scr-chat");
+      }
+
+      // チャット画面から、終了処理をせずにそれぞれの一覧へ戻る
+      function backToListFromChat() {
+        generateMatchTimeline();
+        changeScreen("scr-match");
+      }
+
+      // チャットを明示的に終了する（大学生：経験値付与→一覧へ、高校生：評価画面へ）
+      function endChat() {
+        if (myRole === "大学生") {
+          const partner = HIGHSCHOOLERS[activeChatKey];
+          // デモ用：相談で役に立ったステータスへ経験値を付与
+          kentaData.skills.forEach((skill) => {
+            if (partner.tags.includes(skill.tagId)) {
+              const oldRank = getSkillRankInfo(skill.exp).label;
+              skill.exp += 15;
+              const newRank = getSkillRankInfo(skill.exp).label;
+              if (newRank !== oldRank) {
+                pendingLvlUpMessage += `「${tagNames[skill.tagId]}」が 【${newRank}】 にランクアップしました！\n`;
+              }
+            }
+          });
+          generateMatchTimeline();
+          changeScreen("scr-match");
+        } else {
+          openReview();
+        }
       }
 
       function openReview() {
