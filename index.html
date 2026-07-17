@@ -658,6 +658,13 @@
         ></div>
 
         <button class="btn" onclick="submitReview()">評価・提案を送信</button>
+        <button
+          class="btn btn-secondary"
+          onclick="cancelReview()"
+          style="padding: 8px; font-size: 14px"
+        >
+          ← 戻る
+        </button>
       </div>
     </div>
 
@@ -827,30 +834,27 @@
         const c = document.getElementById("applications-list-container");
         c.innerHTML = "";
 
-        const keys = Object.keys(applications);
-        if (keys.length === 0) {
+        // マッチング成立済み（後輩一覧に追加済み）のものは申請一覧から除外する
+        const pendingKeys = Object.keys(applications).filter(
+          (key) => !kouhaiList.includes(key),
+        );
+
+        if (pendingKeys.length === 0) {
           c.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">現在、届いている相談申請はありません。</p>`;
           return;
         }
 
-        keys.forEach((key) => {
+        pendingKeys.forEach((key) => {
           const partner = HIGHSCHOOLERS[key];
           if (!partner) return;
-          const isAdded = kouhaiList.includes(key);
-          const statusLabel = isAdded
-            ? `<span style="color:var(--accent-color);">✅ 承認済み（後輩一覧に追加済み）</span>`
-            : `<span style="color:#e17055;">🔔 承認待ちの申請</span>`;
-          const actionHtml = isAdded
-            ? ""
-            : `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('${key}')">申請を承認する</button>`;
 
           c.innerHTML += `
               <div class="partner-card">
                   <div class="role-badge">👦 高校生（質問側）</div><br>
                   <strong style="font-size:16px;">${partner.name}</strong>
-                  <p style="font-size:12px; font-weight:bold; margin:4px 0;">${statusLabel}</p>
+                  <p style="font-size:12px; font-weight:bold; margin:4px 0; color:#e17055;">🔔 承認待ちの申請</p>
                   <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
-                  ${actionHtml}
+                  <button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('${key}')">申請を承認する</button>
               </div>`;
         });
       }
@@ -865,18 +869,20 @@
         if (!c) return;
         c.innerHTML = "";
 
+        // マッチング成立済み（先輩一覧に追加済み）の場合は探す一覧から除外する
+        if (senpaiList.includes("kenta")) {
+          c.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">現在、申請中の先輩はいません。<br>マッチング済みの先輩は「先輩一覧」から確認できます。</p>`;
+          return;
+        }
+
         const displayFaculty = kentaData.faculty || "未設定学部";
         const displayDept = kentaData.dept || "未設定学科";
         const status = applications["shota"];
 
-        let actionHtml;
-        if (senpaiList.includes("kenta")) {
-          actionHtml = `<p style="text-align:center; color:var(--accent-color); font-weight:bold; margin-top:15px; font-size:13px;">✅ マッチング成立済み！「先輩一覧」からチャットできます</p>`;
-        } else if (status === "pending") {
-          actionHtml = `<div style="text-align:center; margin-top:15px; font-size:14px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`;
-        } else {
-          actionHtml = `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="applyForConsult('shota')">チャットで相談を申請する</button>`;
-        }
+        const actionHtml =
+          status === "pending"
+            ? `<div style="text-align:center; margin-top:15px; font-size:14px; color:#e17055; font-weight:bold;">⏳ 承認待ち…</div>`
+            : `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px;" onclick="applyForConsult('shota')">チャットで相談を申請する</button>`;
 
         c.innerHTML = `
             <div class="partner-card">
@@ -1482,6 +1488,11 @@
           alert("フィードバックの送信が完了しました！");
         }
 
+        generateMatchTimeline();
+        changeScreen("scr-match");
+      }
+
+      function cancelReview() {
         generateMatchTimeline();
         changeScreen("scr-match");
       }
