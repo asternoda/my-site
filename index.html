@@ -951,7 +951,7 @@
 
           c.innerHTML += `
               <div class="partner-card">
-                  <div class="role-badge">👦 高校生（質問側）</div>
+                  <div class="role-badge">👦 高校生（質問側）</div><br>
                   ${questionerTypeBadgeHtml(key)}<br>
                   <strong style="font-size:16px;">${partner.name}</strong>
                   <p style="font-size:12px; font-weight:bold; margin:4px 0; color:#e17055;">🔔 承認待ちの申請</p>
@@ -1442,7 +1442,7 @@
                   <div class="partner-card">
                       <button class="delete-card-btn" onclick="removeKouhaiFromList('${key}')">✕</button>
                       <div class="match-badge">マッチ度 ${score}%</div>
-                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div>
+                      <div class="role-badge">${isFav ? "⭐ お気に入り" : "👦 高校生（質問側）"}</div><br>
                       ${questionerTypeBadgeHtml(key)}<br>
                       <strong style="font-size:16px;">${partner.name}</strong>
                       <p style="font-size:13px; color:#57606f; margin:5px 0;">${partner.desc}</p>
