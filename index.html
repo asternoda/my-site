@@ -91,7 +91,8 @@
         color: #2f3542;
       }
       .form-group input,
-      .form-group select {
+      .form-group select,
+      .form-group textarea {
         width: 100%;
         padding: 10px;
         border: 1px solid #ced6e0;
@@ -274,7 +275,9 @@
         font-weight: bold;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
         z-index: 999;
-        white-space: nowrap;
+        white-space: pre-wrap;
+        max-width: 260px;
+        text-align: center;
         animation: toastPop 2.5s ease forwards;
         pointer-events: none;
       }
@@ -456,6 +459,15 @@
               🥉 選択したスキルを追加
             </button>
           </div>
+
+          <div class="form-group" style="margin-top: 15px">
+            <label>💬 コメント（自己紹介・一言メッセージ）</label>
+            <textarea
+              id="status-comment-input"
+              rows="3"
+              style="resize: vertical; font-family: inherit"
+            ></textarea>
+          </div>
         </div>
         <button
           class="btn btn-secondary"
@@ -579,30 +591,6 @@
         ></div>
 
         <button class="btn" onclick="submitReview()">評価・提案を送信</button>
-      </div>
-
-      <div
-        id="scr-lvlup"
-        class="screen"
-        style="justify-content: center; text-align: center; background: #fff9db"
-      >
-        <h1
-          style="
-            font-size: 45px;
-            margin: 0;
-            animation: bounce 0.5s infinite alternate;
-          "
-        >
-          🎉
-        </h1>
-        <h2 style="color: #e17055">RANK UP!</h2>
-        <p
-          id="lvlup-text"
-          style="font-weight: bold; color: #2f3542; white-space: pre-wrap"
-        ></p>
-        <button class="btn" onclick="goToMyPageAfterLvlUp()">
-          マイページで確認する
-        </button>
       </div>
     </div>
 
@@ -818,17 +806,6 @@
             deptLock.style.display = "none";
           }
 
-          if (pendingLvlUpMessage) {
-            document.getElementById("lvlup-text").innerText =
-              pendingLvlUpMessage;
-            pendingLvlUpMessage = "";
-            changeScreen("scr-lvlup");
-            setTimeout(() => {
-              confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
-            }, 200);
-            return;
-          }
-
           if (globalSuggestedTagId !== null) {
             noticeBox.style.display = "block";
             noticeBox.innerHTML = `
@@ -973,16 +950,19 @@
         const title = document.getElementById("status-title");
         const desc = document.getElementById("status-desc");
         const addArea = document.getElementById("status-add-skill-area");
+        const commentInput = document.getElementById("status-comment-input");
 
         if (myRole === "大学生") {
           title.innerText = "保有ステータスの編集";
           desc.innerText = "スキルの追加・削除ができます";
           addArea.style.display = "block";
           updateAvailableTagsSelect();
+          commentInput.value = kentaData.desc;
         } else {
           title.innerText = "お悩みステータスの編集";
           desc.innerText = "気になることをタップして追加・削除できます";
           addArea.style.display = "none";
+          commentInput.value = highschoolerData.desc;
         }
 
         renderStatusTagContainer();
@@ -1028,6 +1008,14 @@
       }
 
       function closeStatusEdit() {
+        const commentValue = document
+          .getElementById("status-comment-input")
+          .value.trim();
+        if (myRole === "大学生") {
+          kentaData.desc = commentValue;
+        } else {
+          highschoolerData.desc = commentValue;
+        }
         generateMatchTimeline();
         changeScreen("scr-match");
       }
@@ -1046,54 +1034,63 @@
         const displayDept = kentaData.dept || "未設定学科";
 
         if (myRole === "大学生") {
-          titleEl.innerText = "相談を待つ後輩一覧";
+          titleEl.innerText = "受信した相談申請一覧";
 
-          // 高校生からの相談申請（承認待ち）を表示
-          let pendingHtml = "";
-          Object.keys(applications).forEach((key) => {
-            if (applications[key] === "pending") {
-              pendingHtml += `
-                <div class="notification-box">
-                    <strong>🔔 新しい相談申請</strong><br>
-                    ${highschoolerData.name}さんから、お気に入り経由で相談申請が届いています。<br>
-                    <button class="btn btn-suggest" style="background:var(--accent-color); margin-top:5px;" onclick="approveApplication('${key}')">申請を承認する</button>
-                </div>`;
-            }
-          });
+          // ランクアップ通知（紙吹雪＋トースト）
+          if (pendingLvlUpMessage) {
+            confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+            showToast(pendingLvlUpMessage.trim());
+            pendingLvlUpMessage = "";
+          }
 
-          let matchPoints = 0;
-          kentaData.skills.forEach((skill) => {
-            if (highschoolerData.tags.includes(skill.tagId)) {
-              matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
-            }
-          });
-          let score =
-            highschoolerData.tags.length > 0
-              ? Math.min(
-                  100,
-                  Math.round(
-                    (matchPoints / highschoolerData.tags.length) * 100,
-                  ),
-                )
-              : 0;
+          const reqStatus = applications["kenta"];
 
-          let hstagsHtml = "";
-          highschoolerData.tags.forEach((t) => {
-            hstagsHtml += `<span style="display:inline-block; background:#e2e8f0; font-size:11px; padding:3px 8px; border-radius:12px; margin:2px;"># ${tagNames[t]}</span>`;
-          });
+          if (!reqStatus) {
+            container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">現在、届いている相談申請はありません。</p>`;
+          } else {
+            let matchPoints = 0;
+            kentaData.skills.forEach((skill) => {
+              if (highschoolerData.tags.includes(skill.tagId)) {
+                matchPoints += 1 * getSkillRankInfo(skill.exp).bonus;
+              }
+            });
+            let score =
+              highschoolerData.tags.length > 0
+                ? Math.min(
+                    100,
+                    Math.round(
+                      (matchPoints / highschoolerData.tags.length) * 100,
+                    ),
+                  )
+                : 0;
 
-          container.innerHTML =
-            pendingHtml +
-            `
+            let hstagsHtml = "";
+            highschoolerData.tags.forEach((t) => {
+              hstagsHtml += `<span style="display:inline-block; background:#e2e8f0; font-size:11px; padding:3px 8px; border-radius:12px; margin:2px;"># ${tagNames[t]}</span>`;
+            });
+
+            const statusLabel =
+              reqStatus === "approved"
+                ? `<span style="color:var(--accent-color);">✅ 承認済み</span>`
+                : `<span style="color:#e17055;">🔔 承認待ちの申請</span>`;
+
+            const actionBtn =
+              reqStatus === "approved"
+                ? `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">チャットを開始する</button>`
+                : `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('kenta')">申請を承認する</button>`;
+
+            container.innerHTML = `
                 <div class="partner-card">
                     <div class="match-badge">マッチ度 ${score}%</div>
                     <div class="role-badge">👦 高校生（質問側）</div><br>
                     <strong style="font-size:16px;">${highschoolerData.name}</strong>
+                    <p style="font-size:12px; font-weight:bold; margin:4px 0;">${statusLabel}</p>
                     <p style="font-size:13px; color:#57606f; margin:5px 0;">${highschoolerData.desc}</p>
                     <div style="margin-top:10px;">${hstagsHtml}</div>
-                    <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">チャット相談に応じる</button>
+                    ${actionBtn}
                 </div>
             `;
+          }
         } else {
           titleEl.innerText = "おすすめの先輩一覧";
 
@@ -1296,10 +1293,6 @@
 
         generateMatchTimeline();
         changeScreen("scr-match");
-      }
-
-      function goToMyPageAfterLvlUp() {
-        selectRole("大学生");
       }
 
       function acceptSuggestedTag() {
