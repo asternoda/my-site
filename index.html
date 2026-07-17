@@ -981,6 +981,7 @@
         const displayFaculty = kentaData.faculty || "未設定学部";
         const displayDept = kentaData.dept || "未設定学科";
         const status = applications["shota"];
+        const score = computeMatchScore(kentaData.skills, highschoolerData.tags);
 
         let tagsHtml = "";
         kentaData.skills.forEach((skill) => {
@@ -1000,6 +1001,7 @@
 
         c.innerHTML = `
             <div class="partner-card">
+                <div class="match-badge" style="right: 10px;">おすすめ度 ${score}%</div>
                 <div class="role-badge">🎓 大学生</div><br>
                 <strong style="font-size:16px;">${kentaData.name}先輩</strong>
                 <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
@@ -1461,11 +1463,6 @@
           if (senpaiList.length === 0) {
             container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">まだ先輩が登録されていません。<br>「🔍 先輩を探す」から相談を申請してください。</p>`;
           } else {
-            const score = computeMatchScore(
-              kentaData.skills,
-              highschoolerData.tags,
-            );
-
             let tagsHtml = "";
             kentaData.skills.forEach((skill) => {
               const rankInfo = getSkillRankInfo(skill.exp);
@@ -1498,7 +1495,6 @@
               container.innerHTML += `
                   <div class="partner-card">
                       <button class="delete-card-btn" onclick="removeSenpaiFromList('${key}')">✕</button>
-                      <div class="match-badge">おすすめ度 ${score}%</div>
                       <div class="role-badge">${isFav ? "⭐ お気に入り" : "🎓 大学生"}</div><br>
                       <strong style="font-size:16px;">${kentaData.name}先輩</strong>
                       <p style="font-size:13px; color:#57606f; margin:5px 0;">${kentaData.desc}</p>
