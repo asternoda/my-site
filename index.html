@@ -413,6 +413,14 @@
         </button>
         <button
           class="btn"
+          id="applications-btn"
+          onclick="openApplicationsList()"
+          style="background: #0984e3; padding: 8px; font-size: 14px; display: none"
+        >
+          📋 申請一覧
+        </button>
+        <button
+          class="btn"
           onclick="openStatusEdit()"
           style="background: #8e44ad; padding: 8px; font-size: 14px"
         >
@@ -475,6 +483,28 @@
           style="padding: 8px; font-size: 14px"
         >
           ← 相手選択画面に戻る
+        </button>
+      </div>
+
+      <div id="scr-applications" class="screen">
+        <h2>相談申請一覧</h2>
+        <p
+          style="
+            text-align: center;
+            font-size: 11px;
+            color: #747d8c;
+            margin: 0 0 5px;
+          "
+        >
+          承認すると後輩一覧に追加されます
+        </p>
+        <div class="result-list" id="applications-list-container"></div>
+        <button
+          class="btn btn-secondary"
+          onclick="changeScreen('scr-match')"
+          style="padding: 8px; font-size: 14px"
+        >
+          ← 後輩一覧に戻る
         </button>
       </div>
 
@@ -635,6 +665,10 @@
       let chatHistories = {}; // 相手ごとのチャット録 { kenta: [{who,text,time}] }
       let hasTalkedWith = {}; // 一度でも話したか { kenta: true }
 
+      // ===== 後輩一覧・申請一覧（大学生視点）=====
+      const KOUHAI_KEY = "shota"; // 後輩マスタキー（デモは1名＝highschoolerData）
+      let kouhaiList = []; // 後輩一覧に追加済みの後輩キー ["shota"]
+
       function partnerName(key) {
         return SENPAI[key] ? SENPAI[key].name + "先輩" : key;
       }
@@ -683,8 +717,38 @@
 
       function approveApplication(key) {
         applications[key] = "approved";
-        alert(`${highschoolerData.name}さんからの相談申請を承認しました！`);
+        if (!kouhaiList.includes(KOUHAI_KEY)) {
+          kouhaiList.push(KOUHAI_KEY);
+        }
+        alert(
+          `${highschoolerData.name}さんからの相談申請を承認しました！\n後輩一覧に追加されました。`,
+        );
         generateMatchTimeline();
+        openApplicationsList();
+      }
+
+      function openApplicationsList() {
+        const c = document.getElementById("applications-list-container");
+        c.innerHTML = "";
+
+        // デモは後輩候補が常に1名（highschoolerData）届いている想定
+        const isAdded = kouhaiList.includes(KOUHAI_KEY);
+        const statusLabel = isAdded
+          ? `<span style="color:var(--accent-color);">✅ 承認済み（後輩一覧に追加済み）</span>`
+          : `<span style="color:#e17055;">🔔 承認待ちの申請</span>`;
+        const actionHtml = isAdded
+          ? ""
+          : `<button class="btn" style="width:100%; margin-top:10px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('kenta')">申請を承認する</button>`;
+
+        c.innerHTML = `
+            <div class="partner-card">
+                <div class="role-badge">👦 高校生（質問側）</div><br>
+                <strong style="font-size:16px;">${highschoolerData.name}</strong>
+                <p style="font-size:12px; font-weight:bold; margin:4px 0;">${statusLabel}</p>
+                <p style="font-size:13px; color:#57606f; margin:5px 0;">${highschoolerData.desc}</p>
+                ${actionHtml}
+            </div>`;
+        changeScreen("scr-applications");
       }
 
       function startChatFromApproved(key) {
@@ -1025,16 +1089,18 @@
         const titleEl = document.getElementById("match-screen-title");
         container.innerHTML = "";
 
-        // チャット履歴ボタンは高校生視点のみ表示
+        // チャット履歴ボタンは高校生視点のみ、申請一覧ボタンは大学生視点のみ表示
         document.getElementById("history-btn").style.display =
           myRole === "大学生" ? "none" : "block";
+        document.getElementById("applications-btn").style.display =
+          myRole === "大学生" ? "block" : "none";
 
         // まだ登録してない場合のフォールバック表示用
         const displayFaculty = kentaData.faculty || "未設定学部";
         const displayDept = kentaData.dept || "未設定学科";
 
         if (myRole === "大学生") {
-          titleEl.innerText = "受信した相談申請一覧";
+          titleEl.innerText = "後輩一覧";
 
           // ランクアップ通知（紙吹雪＋トースト）
           if (pendingLvlUpMessage) {
@@ -1043,10 +1109,8 @@
             pendingLvlUpMessage = "";
           }
 
-          const reqStatus = applications["kenta"];
-
-          if (!reqStatus) {
-            container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">現在、届いている相談申請はありません。</p>`;
+          if (kouhaiList.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:#a4b0be; font-size:13px; margin-top:20px;">まだ後輩が登録されていません。<br>「📋 申請一覧」から相談申請を承認してください。</p>`;
           } else {
             let matchPoints = 0;
             kentaData.skills.forEach((skill) => {
@@ -1069,25 +1133,14 @@
               hstagsHtml += `<span style="display:inline-block; background:#e2e8f0; font-size:11px; padding:3px 8px; border-radius:12px; margin:2px;"># ${tagNames[t]}</span>`;
             });
 
-            const statusLabel =
-              reqStatus === "approved"
-                ? `<span style="color:var(--accent-color);">✅ 承認済み</span>`
-                : `<span style="color:#e17055;">🔔 承認待ちの申請</span>`;
-
-            const actionBtn =
-              reqStatus === "approved"
-                ? `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">チャットを開始する</button>`
-                : `<button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:#0984e3;" onclick="approveApplication('kenta')">申請を承認する</button>`;
-
             container.innerHTML = `
                 <div class="partner-card">
                     <div class="match-badge">マッチ度 ${score}%</div>
                     <div class="role-badge">👦 高校生（質問側）</div><br>
                     <strong style="font-size:16px;">${highschoolerData.name}</strong>
-                    <p style="font-size:12px; font-weight:bold; margin:4px 0;">${statusLabel}</p>
                     <p style="font-size:13px; color:#57606f; margin:5px 0;">${highschoolerData.desc}</p>
                     <div style="margin-top:10px;">${hstagsHtml}</div>
-                    ${actionBtn}
+                    <button class="btn" style="width:100%; margin-top:15px; padding:8px; font-size:14px; background:var(--accent-color);" onclick="startChatRoom()">相談する</button>
                 </div>
             `;
           }
@@ -1187,7 +1240,17 @@
             `;
           endBtn.innerText = "チャットを終了して一覧へ戻る";
           endBtn.onclick = () => {
-            alert("チャットを終了しました。");
+            // デモ用：相談で役に立ったステータスへ経験値を付与
+            kentaData.skills.forEach((skill) => {
+              if (highschoolerData.tags.includes(skill.tagId)) {
+                const oldRank = getSkillRankInfo(skill.exp).label;
+                skill.exp += 15;
+                const newRank = getSkillRankInfo(skill.exp).label;
+                if (newRank !== oldRank) {
+                  pendingLvlUpMessage += `「${tagNames[skill.tagId]}」が 【${newRank}】 にランクアップしました！\n`;
+                }
+              }
+            });
             generateMatchTimeline();
             changeScreen("scr-match");
           };
